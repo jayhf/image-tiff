@@ -130,6 +130,21 @@ impl TiffValue for [i64] {
     }
 }
 
+#[cfg(feature = "nightly")]
+impl TiffValue for [f16] {
+    const BYTE_LEN: u8 = 2;
+    const FIELD_TYPE: Type = Type::HALF;
+
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn data(&self) -> Cow<[u8]> {
+        // We write using native endian so this should be safe
+        Cow::Borrowed(bytecast::f16_as_ne_bytes(self))
+    }
+}
+
 impl TiffValue for [f32] {
     const BYTE_LEN: u8 = 4;
     const FIELD_TYPE: Type = Type::FLOAT;

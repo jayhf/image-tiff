@@ -30,6 +30,9 @@ pub enum DecodingResult {
     U32(Vec<u32>),
     /// A vector of 64 bit unsigned ints
     U64(Vec<u64>),
+    /// A vector of 16 bit IEEE floats
+    #[cfg(feature = "nightly")]
+    F16(Vec<f16>),
     /// A vector of 32 bit IEEE floats
     F32(Vec<f32>),
     /// A vector of 64 bit IEEE floats
@@ -74,6 +77,15 @@ impl DecodingResult {
             Err(TiffError::LimitsExceeded)
         } else {
             Ok(DecodingResult::U64(vec![0; size]))
+        }
+    }
+    
+    #[cfg(feature = "nightly")]
+    fn new_f16(size: usize, limits: &Limits) -> TiffResult<DecodingResult> {
+        if size > limits.decoding_buffer_size / std::mem::size_of::<f16>() {
+            Err(TiffError::LimitsExceeded)
+        } else {
+            Ok(DecodingResult::F16(vec![0.0; size]))
         }
     }
 
@@ -131,6 +143,8 @@ impl DecodingResult {
             DecodingResult::U16(ref mut buf) => DecodingBuffer::U16(&mut buf[start..]),
             DecodingResult::U32(ref mut buf) => DecodingBuffer::U32(&mut buf[start..]),
             DecodingResult::U64(ref mut buf) => DecodingBuffer::U64(&mut buf[start..]),
+            #[cfg(feature = "nightly")]
+            DecodingResult::F16(ref mut buf) => DecodingBuffer::F16(&mut buf[start..]),
             DecodingResult::F32(ref mut buf) => DecodingBuffer::F32(&mut buf[start..]),
             DecodingResult::F64(ref mut buf) => DecodingBuffer::F64(&mut buf[start..]),
             DecodingResult::I8(ref mut buf) => DecodingBuffer::I8(&mut buf[start..]),
@@ -151,6 +165,9 @@ pub enum DecodingBuffer<'a> {
     U32(&'a mut [u32]),
     /// A slice of 64 bit unsigned ints
     U64(&'a mut [u64]),
+    /// A slice of 16 bit IEEE floats
+    #[cfg(feature = "nightly")]
+    F16(&'a mut [f16]), 
     /// A slice of 32 bit IEEE floats
     F32(&'a mut [f32]),
     /// A slice of 64 bit IEEE floats
@@ -176,6 +193,8 @@ impl<'a> DecodingBuffer<'a> {
             DecodingBuffer::I32(buf) => bytecast::i32_as_ne_mut_bytes(buf),
             DecodingBuffer::U64(buf) => bytecast::u64_as_ne_mut_bytes(buf),
             DecodingBuffer::I64(buf) => bytecast::i64_as_ne_mut_bytes(buf),
+            #[cfg(feature = "nightly")]
+            DecodingBuffer::F16(buf) => bytecast::f16_as_ne_mut_bytes(buf),
             DecodingBuffer::F32(buf) => bytecast::f32_as_ne_mut_bytes(buf),
             DecodingBuffer::F64(buf) => bytecast::f64_as_ne_mut_bytes(buf),
         }
@@ -289,6 +308,20 @@ fn rev_hpredict_nsamp(buf: &mut [u8], bit_depth: u8, samples: usize) {
     }
 }
 
+#[cfg(feature = "nightly")]
+fn predict_f16(input: &mut [u8], output: &mut [u8], samples: usize) {
+    for i in samples..input.len() {
+        input[i] = input[i].wrapping_add(input[i - samples]);
+    }
+    
+    for (i, chunk) in output.chunks_mut(2).enumerate() {
+        chunk.copy_from_slice(&u16::to_ne_bytes(u16::from_be_bytes([
+            input[i],
+            input[input.len() / 2 + i],
+        ])));
+    }
+}
+
 fn predict_f32(input: &mut [u8], output: &mut [u8], samples: usize) {
     for i in samples..input.len() {
         input[i] = input[i].wrapping_add(input[i - samples]);
@@ -341,6 +374,8 @@ fn fix_endianness_and_predict(
         Predictor::FloatingPoint => {
             let mut buffer_copy = buf.to_vec();
             match bit_depth {
+                #[cfg(feature = "nightly")]
+                16 => predict_f16(&mut buffer_copy, buf, samples),
                 32 => predict_f32(&mut buffer_copy, buf, samples),
                 64 => predict_f64(&mut buffer_copy, buf, samples),
                 _ => unreachable!("Caller should have validated arguments. Please file a bug."),
@@ -640,6 +675,13 @@ impl<R: Read + Seek> Decoder<R> {
         self.reader.read_i32()
     }
 
+    /// Reads a TIFF half value
+    #[cfg(feature = "nightly")]
+    #[inline]
+    pub fn read_half(&mut self) -> Result<f16, io::Error> {
+        self.reader.read_f16()
+    }
+    
     /// Reads a TIFF float value
     #[inline]
     pub fn read_float(&mut self) -> Result<f32, io::Error> {
@@ -989,6 +1031,8 @@ impl<R: Read + Seek> Decoder<R> {
                 )),
             },
             SampleFormat::IEEEFP => match max_sample_bits {
+                #[cfg(feature = "nightly")]
+                16 => DecodingResult::new_f16(buffer_size, &self.limits),
                 32 => DecodingResult::new_f32(buffer_size, &self.limits),
                 64 => DecodingResult::new_f64(buffer_size, &self.limits),
                 n => Err(TiffError::UnsupportedError(

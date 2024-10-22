@@ -80,6 +80,20 @@ impl ColorType for GrayI16 {
     integer_horizontal_predict!();
 }
 
+#[cfg(feature = "nightly")]
+pub struct Gray16Float;
+#[cfg(feature = "nightly")]
+impl ColorType for Gray16Float {
+    type Inner = f32;
+    const TIFF_VALUE: PhotometricInterpretation = PhotometricInterpretation::BlackIsZero;
+    const BITS_PER_SAMPLE: &'static [u16] = &[16];
+    const SAMPLE_FORMAT: &'static [SampleFormat] = &[SampleFormat::IEEEFP];
+
+    fn horizontal_predict(row: &[Self::Inner], result: &mut Vec<Self::Inner>) {
+        unreachable!()
+    }
+}
+
 pub struct Gray32;
 impl ColorType for Gray32 {
     type Inner = u32;
@@ -162,6 +176,19 @@ impl ColorType for RGB16 {
     const SAMPLE_FORMAT: &'static [SampleFormat] = &[SampleFormat::Uint; 3];
 
     integer_horizontal_predict!();
+}
+
+#[cfg(feature = "nightly")]
+pub struct RGB16Float;
+#[cfg(feature = "nightly")]
+impl ColorType for RGB16Float {
+    type Inner = f32;
+    const TIFF_VALUE: PhotometricInterpretation = PhotometricInterpretation::RGB;
+    const BITS_PER_SAMPLE: &'static [u16] = &[16, 16, 16];
+    const SAMPLE_FORMAT: &'static [SampleFormat] = &[SampleFormat::IEEEFP; 3];
+    fn horizontal_predict(_: &[Self::Inner], _: &mut Vec<Self::Inner>) {
+        unreachable!()
+    }
 }
 
 pub struct RGB32;

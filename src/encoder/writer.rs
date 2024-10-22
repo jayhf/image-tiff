@@ -149,6 +149,16 @@ impl<W: Write> TiffWriter<W> {
         Ok(())
     }
 
+    #[cfg(feature = "nightly")]
+    pub fn write_f16(&mut self, n: f16) -> Result<(), io::Error> {
+        self.byte_count = self
+            .compressor
+            .write_to(&mut self.writer, &u16::to_ne_bytes(n.to_bits()))?;
+        self.offset += self.byte_count;
+
+        Ok(())
+    }
+
     pub fn write_f32(&mut self, n: f32) -> Result<(), io::Error> {
         self.byte_count = self
             .compressor

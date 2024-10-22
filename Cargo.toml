@@ -24,6 +24,9 @@ flate2 = "1.0.20"
 [dev-dependencies]
 criterion = "0.3.1"
 
+[features]
+nightly = []
+
 [[bench]]
 name = "lzw"
 harness = false

@@ -93,6 +93,18 @@ pub trait EndianReader: Read {
         })
     }
 
+    /// Reads an f16
+    #[cfg(feature = "nightly")]
+    #[inline(always)]
+    fn read_f16(&mut self) -> Result<f16, io::Error> {
+        let mut n = [0u8; 2];
+        self.read_exact(&mut n)?;
+        Ok(f16::from_bits(match self.byte_order() {
+            ByteOrder::LittleEndian => u16::from_le_bytes(n),
+            ByteOrder::BigEndian => u16::from_be_bytes(n),
+        }))
+    }
+    
     /// Reads an f32
     #[inline(always)]
     fn read_f32(&mut self) -> Result<f32, io::Error> {

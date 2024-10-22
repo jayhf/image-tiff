@@ -6,6 +6,9 @@
 //! # Related Links
 //! * <https://web.archive.org/web/20210108073850/https://www.adobe.io/open/standards/TIFF.html> - The TIFF specification
 
+// Enable 16 bit float support on the nightly compiler feature flag
+#![cfg_attr(feature = "nightly", feature(f16))]
+
 extern crate jpeg;
 extern crate weezl;
 

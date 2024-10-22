@@ -26,6 +26,8 @@ pub enum Value {
     SignedBig(i64),
     Unsigned(u32),
     UnsignedBig(u64),
+    #[cfg(feature = "nightly")]
+    Half(f16),
     Float(f32),
     Double(f64),
     List(Vec<Value>),
@@ -126,9 +128,22 @@ impl Value {
             )),
         }
     }
+    
+    #[cfg(feature = "nightly")]
+    pub fn into_f16(self) -> TiffResult<f16> {
+        match self {
+            Value::Half(val) => Ok(val.into()),
+            val => Err(TiffError::FormatError(
+                TiffFormatError::SignedIntegerExpected(val),
+            )),
+        }
+    }
 
     pub fn into_f32(self) -> TiffResult<f32> {
         match self {
+            // TODO(jf) why isn't this supported?
+            // #[cfg(feature = "nightly")]
+            // Value::Half(val) => Ok(val.into()),
             Float(val) => Ok(val),
             val => Err(TiffError::FormatError(
                 TiffFormatError::SignedIntegerExpected(val),
@@ -138,6 +153,8 @@ impl Value {
 
     pub fn into_f64(self) -> TiffResult<f64> {
         match self {
+            #[cfg(feature = "nightly")]
+            Value::Half(val) => Ok(val.into()),
             Double(val) => Ok(val),
             val => Err(TiffError::FormatError(
                 TiffFormatError::SignedIntegerExpected(val),
@@ -381,7 +398,7 @@ impl Entry {
 
         let tag_size = match self.type_ {
             Type::BYTE | Type::SBYTE | Type::ASCII | Type::UNDEFINED => 1,
-            Type::SHORT | Type::SSHORT => 2,
+            Type::SHORT | Type::SSHORT | Type::HALF => 2,
             Type::LONG | Type::SLONG | Type::FLOAT | Type::IFD => 4,
             Type::LONG8
             | Type::SLONG8
@@ -423,6 +440,7 @@ impl Entry {
                     | Type::SSHORT
                     | Type::LONG
                     | Type::SLONG
+                    | Type::HALF
                     | Type::FLOAT
                     | Type::IFD => unreachable!(),
                 });
@@ -437,6 +455,12 @@ impl Entry {
                 Type::SSHORT => Signed(i32::from(self.r(bo).read_i16()?)),
                 Type::LONG => Unsigned(self.r(bo).read_u32()?),
                 Type::SLONG => Signed(self.r(bo).read_i32()?),
+                Type::HALF => {
+                    #[cfg(not(feature = "nightly"))]
+                    unreachable!();
+                    #[cfg(feature = "nightly")]
+                    Value::Half(self.r(bo).read_f16()?)
+                },
                 Type::FLOAT => Float(self.r(bo).read_f32()?),
                 Type::ASCII => {
                     if self.offset[0] == 0 {
@@ -549,6 +573,7 @@ impl Entry {
                 | Type::SLONG8
                 | Type::RATIONAL
                 | Type::SRATIONAL
+                | Type::HALF
                 | Type::DOUBLE
                 | Type::IFD8 => {
                     unreachable!()
@@ -579,6 +604,12 @@ impl Entry {
             }),
             Type::SLONG => self.decode_offset(self.count, bo, bigtiff, limits, reader, |reader| {
                 Ok(Signed(reader.read_i32()?))
+            }),
+            Type::HALF => self.decode_offset(self.count, bo, bigtiff, limits, reader, |reader| {
+                #[cfg(not(feature = "nightly"))]
+                unreachable!();
+                #[cfg(feature = "nightly")]
+                Ok(Value::Half(reader.read_f16()?))
             }),
             Type::FLOAT => self.decode_offset(self.count, bo, bigtiff, limits, reader, |reader| {
                 Ok(Float(reader.read_f32()?))

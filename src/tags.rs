@@ -154,6 +154,8 @@ pub enum Type(u16) {
     SLONG = 9,
     /// Fraction stored as two 32-bit signed integers
     SRATIONAL = 10,
+    /// 16-bit IEEE floating point
+    HALF = 19,
     /// 32-bit IEEE floating point
     FLOAT = 11,
     /// 64-bit IEEE floating point
